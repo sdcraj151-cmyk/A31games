@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RAM Games - Chicken Road Demo</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a1a, #333);
+      color: white;
+      text-align: center;
+    }
+    header {
+      padding: 20px;
+      background: #111;
+      font-size: 28px;
+      font-weight: bold;
+      color: #ffcc00;
+    }
+    #gameCanvas {
+      background: #87CEEB;
+      display: block;
+      margin: 20px auto;
+      border: 4px solid #000;
+      border-radius: 10px;
+    }
+    button {
+      background: #ffcc00;
+      border: none;
+      padding: 12px 20px;
+      font-size: 18px;
+      margin-top: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #ffaa00;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <header>🎮 RAM Games - Chicken Road Demo</header>
+  <canvas id="gameCanvas" width="400" height="500"></canvas>
+  <br/>
+  <button onclick="startGame()">▶ Play Again</button>
+  <footer>© 2025 RAM Games | All Rights Reserved</footer>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let chicken, cars, score, gameOver;
+
+    function startGame() {
+      chicken = { x: 180, y: 450, width: 40, height: 40, color: "yellow" };
+      cars = [];
+      score = 0;
+      gameOver = false;
+      requestAnimationFrame(updateGame);
+    }
+
+    function drawChicken() {
+      ctx.fillStyle = chicken.color;
+      ctx.fillRect(chicken.x, chicken.y, chicken.width, chicken.height);
+    }
+
+    function drawCars() {
+      ctx.fillStyle = "red";
+      cars.forEach(car => {
+        ctx.fillRect(car.x, car.y, car.width, car.height);
+      });
+    }
+
+    function updateGame() {
+      if (gameOver) {
+        ctx.fillStyle = "white";
+        ctx.font = "24px Arial";
+        ctx.fillText("Game Over! Score: " + score, 70, 250);
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Move cars
+      cars.forEach(car => {
+        car.y += car.speed;
+      });
+
+      // Add new cars
+      if (Math.random() < 0.02) {
+        cars.push({
+          x: Math.random() * 360,
+          y: -40,
+          width: 40,
+          height: 40,
+          speed: 3 + Math.random() * 2
+        });
+      }
+
+      // Remove old cars
+      cars = cars.filter(car => car.y < canvas.height);
+
+      // Collision detection
+      cars.forEach(car => {
+        if (
+          chicken.x < car.x + car.width &&
+          chicken.x + chicken.width > car.x &&
+          chicken.y < car.y + car.height &&
+          chicken.y + chicken.height > car.y
+        ) {
+          gameOver = true;
+        }
+      });
+
+      // Draw
+      drawChicken();
+      drawCars();
+
+      // Score
+      score++;
+      ctx.fillStyle = "black";
+      ctx.font = "20px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+
+      requestAnimationFrame(updateGame);
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowLeft" && chicken.x > 0) chicken.x -= 20;
+      if (e.key === "ArrowRight" && chicken.x < canvas.width - chicken.width) chicken.x += 20;
+      if (e.key === "ArrowUp" && chicken.y > 0) chicken.y -= 20;
+      if (e.key === "ArrowDown" && chicken.y < canvas.height - chicken.height) chicken.y += 20;
+    });
+
+    startGame();
+  </script>
+</body>
+</html>

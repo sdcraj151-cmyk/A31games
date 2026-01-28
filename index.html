@@ -1,147 +1,224 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RAM Games - Chicken Road Demo</title>
+  <meta charset="utf-8" />
+  <title>RAM Games Bet</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #1a1a1a, #333);
-      color: white;
-      text-align: center;
+    :root{
+      --bg1:#0b0b0f;
+      --bg2:#1a1a22;
+      --accent:#ffcc00;
+      --accent-dark:#e6b800;
+      --muted:#cfcfcf;
+      --card:#121216;
+      --glass: rgba(255,255,255,0.03);
     }
-    header {
-      padding: 20px;
-      background: #111;
-      font-size: 28px;
-      font-weight: bold;
-      color: #ffcc00;
-    }
-    #gameCanvas {
-      background: #87CEEB;
-      display: block;
-      margin: 20px auto;
-      border: 4px solid #000;
-      border-radius: 10px;
-    }
-    button {
-      background: #ffcc00;
-      border: none;
-      padding: 12px 20px;
-      font-size: 18px;
-      margin-top: 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    button:hover {
-      background: #ffaa00;
-    }
-    footer {
-      margin-top: 30px;
-      font-size: 14px;
-      color: #aaa;
-    }
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#fff}
+    .wrap{max-width:760px;margin:28px auto;padding:24px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);box-shadow:0 6px 30px rgba(0,0,0,0.6)}
+    h1{margin:0 0 8px;font-size:28px;color:var(--accent)}
+    p.lead{margin:0 0 18px;color:var(--muted)}
+    #balance{font-size:20px;margin:12px 0;padding:10px 14px;background:var(--card);border-radius:8px;display:inline-block}
+    .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+    input[type=number]{width:120px;padding:10px;border-radius:8px;border:none;background:var(--glass);color:#fff}
+    button{background:var(--accent);color:#000;padding:10px 16px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
+    button.secondary{background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.06)}
+    button:disabled{opacity:0.5;cursor:not-allowed}
+    #result{margin-top:18px;font-size:18px;min-height:28px}
+    .result-win{color:#8ef56f}
+    .result-lose{color:#ff6b6b}
+    .history{margin-top:18px;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;max-height:160px;overflow:auto}
+    .history-item{padding:6px 8px;border-bottom:1px dashed rgba(255,255,255,0.02);display:flex;justify-content:space-between}
+    .small{font-size:13px;color:var(--muted)}
+    .settings{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    label{font-size:13px;color:var(--muted)}
+    .odds{width:180px}
+    .flash{animation:flash 0.9s ease}
+    @keyframes flash{0%{transform:scale(1)}50%{transform:scale(1.03)}100%{transform:scale(1)}}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    @media (max-width:520px){.controls{flex-direction:column;align-items:stretch}input[type=number]{width:100%}}
   </style>
 </head>
 <body>
-  <header>🎮 RAM Games - Chicken Road Demo</header>
-  <canvas id="gameCanvas" width="400" height="500"></canvas>
-  <br/>
-  <button onclick="startGame()">▶ Play Again</button>
-  <footer>© 2025 RAM Games | All Rights Reserved</footer>
+  <div class="wrap" role="main" aria-labelledby="title">
+    <h1 id="title">🎲 RAM Games Bet</h1>
+    <p class="lead">Demo betting game — balance is stored locally in your browser (not real money).</p>
+
+    <div id="balance" aria-live="polite">Balance: <span id="bal-amt">0</span> Coins</div>
+
+    <div class="controls" aria-label="Bet controls">
+      <input id="bet-input" type="number" min="1" value="10" aria-label="Bet amount (coins)"/>
+      <button id="bet-btn">💰 Place Bet</button>
+      <button id="double-btn" class="secondary" title="Bet the full balance">All In</button>
+      <button id="reset-btn" class="secondary" title="Reset balance to default">Reset</button>
+    </div>
+
+    <div class="settings">
+      <label class="small">Win Chance:
+        <input id="odds" class="odds" type="range" min="1" max="99" value="50" aria-label="Win chance slider"/>
+        <span id="odds-label" class="small">50%</span>
+      </label>
+      <div class="small">Payout: 2x on win (net +bet)</div>
+    </div>
+
+    <div id="result" role="status"></div>
+
+    <div class="history" aria-live="polite" aria-label="Bet history">
+      <div class="small" style="margin-bottom:6px">Recent results</div>
+      <div id="history-list"></div>
+    </div>
+
+    <footer>Note: This is only for learning. Do not use with real money.</footer>
+  </div>
 
   <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+    // Configuration
+    const DEFAULT_BALANCE = 100;
+    const HISTORY_LIMIT = 20;
 
-    let chicken, cars, score, gameOver;
+    // Elements
+    const balEl = document.getElementById('bal-amt');
+    const betInput = document.getElementById('bet-input');
+    const betBtn = document.getElementById('bet-btn');
+    const doubleBtn = document.getElementById('double-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const resultEl = document.getElementById('result');
+    const oddsEl = document.getElementById('odds');
+    const oddsLabel = document.getElementById('odds-label');
+    const historyList = document.getElementById('history-list');
 
-    function startGame() {
-      chicken = { x: 180, y: 450, width: 40, height: 40, color: "yellow" };
-      cars = [];
-      score = 0;
-      gameOver = false;
-      requestAnimationFrame(updateGame);
-    }
+    // State
+    let balance = loadBalance();
+    let history = loadHistory();
 
-    function drawChicken() {
-      ctx.fillStyle = chicken.color;
-      ctx.fillRect(chicken.x, chicken.y, chicken.width, chicken.height);
-    }
+    // Init UI
+    render();
 
-    function drawCars() {
-      ctx.fillStyle = "red";
-      cars.forEach(car => {
-        ctx.fillRect(car.x, car.y, car.width, car.height);
-      });
-    }
-
-    function updateGame() {
-      if (gameOver) {
-        ctx.fillStyle = "white";
-        ctx.font = "24px Arial";
-        ctx.fillText("Game Over! Score: " + score, 70, 250);
-        return;
-      }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Move cars
-      cars.forEach(car => {
-        car.y += car.speed;
-      });
-
-      // Add new cars
-      if (Math.random() < 0.02) {
-        cars.push({
-          x: Math.random() * 360,
-          y: -40,
-          width: 40,
-          height: 40,
-          speed: 3 + Math.random() * 2
-        });
-      }
-
-      // Remove old cars
-      cars = cars.filter(car => car.y < canvas.height);
-
-      // Collision detection
-      cars.forEach(car => {
-        if (
-          chicken.x < car.x + car.width &&
-          chicken.x + chicken.width > car.x &&
-          chicken.y < car.y + car.height &&
-          chicken.y + chicken.height > car.y
-        ) {
-          gameOver = true;
-        }
-      });
-
-      // Draw
-      drawChicken();
-      drawCars();
-
-      // Score
-      score++;
-      ctx.fillStyle = "black";
-      ctx.font = "20px Arial";
-      ctx.fillText("Score: " + score, 10, 30);
-
-      requestAnimationFrame(updateGame);
-    }
-
-    document.addEventListener("keydown", e => {
-      if (e.key === "ArrowLeft" && chicken.x > 0) chicken.x -= 20;
-      if (e.key === "ArrowRight" && chicken.x < canvas.width - chicken.width) chicken.x += 20;
-      if (e.key === "ArrowUp" && chicken.y > 0) chicken.y -= 20;
-      if (e.key === "ArrowDown" && chicken.y < canvas.height - chicken.height) chicken.y += 20;
+    // Event listeners
+    betBtn.addEventListener('click', placeBet);
+    doubleBtn.addEventListener('click', () => {
+      betInput.value = Math.max(1, Math.floor(balance));
+    });
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('Reset balance to ' + DEFAULT_BALANCE + ' coins?')) return;
+      balance = DEFAULT_BALANCE;
+      history = [];
+      saveState();
+      render();
+      setResult('Balance reset.', 'small');
+    });
+    oddsEl.addEventListener('input', () => {
+      oddsLabel.innerText = oddsEl.value + '%';
     });
 
-    startGame();
+    function placeBet() {
+      const bet = parseFloat(betInput.value);
+      if (!Number.isFinite(bet) || bet <= 0) {
+        setResult('Enter a valid bet (> 0).', 'small'); return;
+      }
+      if (bet > balance) {
+        setResult('❌ Not enough balance!', 'result-lose'); return;
+      }
+
+      // disable UI while resolving
+      setDisabled(true);
+      setResult('Spinning...', 'small flash');
+
+      // Simulate short delay for UX
+      setTimeout(() => {
+        balance -= bet;
+        // winChance percent
+        const winChance = Math.max(1, Math.min(99, parseInt(oddsEl.value, 10)));
+        const roll = Math.random() * 100;
+        const win = roll < winChance; // e.g., 50 means 50% chance to win
+
+        if (win) {
+          // payout: 2x (player receives 2 * bet back -> net +bet)
+          balance += bet * 2;
+          setResult('🎉 You WON! +' + bet.toFixed(0) + ' Coins', 'result-win flash');
+          addHistory({type:'win', amount:bet, odds:winChance, time:Date.now()});
+        } else {
+          setResult('😢 You LOST! -' + bet.toFixed(0) + ' Coins', 'result-lose flash');
+          addHistory({type:'lose', amount:bet, odds:winChance, time:Date.now()});
+        }
+
+        saveState();
+        render();
+        // re-enable UI
+        setTimeout(()=>setDisabled(false), 600);
+      }, 700);
+    }
+
+    function setDisabled(v){
+      betBtn.disabled = v;
+      doubleBtn.disabled = v;
+      resetBtn.disabled = v;
+      betInput.disabled = v;
+      oddsEl.disabled = v;
+    }
+
+    function setResult(text, cls){
+      resultEl.className = cls || '';
+      resultEl.innerText = text;
+    }
+
+    function render(){
+      balEl.innerText = Math.floor(balance);
+      renderHistory();
+    }
+
+    function renderHistory(){
+      historyList.innerHTML = '';
+      if (!history.length) {
+        historyList.innerHTML = '<div class="small">No bets yet.</div>'; return;
+      }
+      for (const h of history.slice().reverse()){
+        const d = new Date(h.time);
+        const time = d.toLocaleTimeString();
+        const el = document.createElement('div');
+        el.className = 'history-item';
+        el.innerHTML = '<div class="small">' + (h.type === 'win' ? 'Win' : 'Lose') + ' • ' + h.amount + 'c</div>'
+                     + '<div class="small">' + h.odds + '% • ' + time + '</div>';
+        historyList.appendChild(el);
+      }
+    }
+
+    function addHistory(entry){
+      history.push(entry);
+      if (history.length > HISTORY_LIMIT) history.shift();
+    }
+
+    // Persistence
+    function saveState(){
+      try{
+        localStorage.setItem('ramgames_balance', String(balance));
+        localStorage.setItem('ramgames_history', JSON.stringify(history));
+      }catch(e){ console.warn('Could not save state', e) }
+    }
+    function loadBalance(){
+      try{
+        const v = localStorage.getItem('ramgames_balance');
+        if (v !== null) return Number(v);
+      }catch(e){}
+      return DEFAULT_BALANCE;
+    }
+    function loadHistory(){
+      try{
+        const v = localStorage.getItem('ramgames_history');
+        if (v) return JSON.parse(v);
+      }catch(e){}
+      return [];
+    }
+
+    // On first load, ensure saved values exist
+    saveState();
+
+    // Helpful: expose for console debugging
+    window.RAMGames = {
+      get balance(){return balance},
+      set balance(v){balance = v; saveState(); render()},
+      reset(){balance = DEFAULT_BALANCE; history=[]; saveState(); render()}
+    };
   </script>
 </body>
 </html>
